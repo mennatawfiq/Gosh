@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -59,14 +60,39 @@ func handleType(ins []string, builtins []string) {
 	}
 }
 
+func handlePwd() {
+	// Abs function returns an absolute representation of input path
+	abs, err := filepath.Abs(".")
+	if err != nil {
+		printOSln("errr: " + err.Error())
+	}
+	printOSln(abs)
+}
+
+func handleCd(ins []string) {
+	var err error
+	if len(ins) == 1 || ins[1] == "~" {
+		home, _ := os.UserHomeDir()
+		err = os.Chdir(home)
+	} else {
+		// if path[0] == '/' {
+		// 	path = strings.TrimPrefix(path, "/")
+		// }
+		err = os.Chdir(ins[1])
+	}
+	if err != nil {
+		printOSln("cd: " + ins[1] + ": No such file or directory")
+	}
+}
+
 func main() {
-	builtins := []string{"type", "echo", "exit"}
+	builtins := []string{"type", "echo", "exit", "pwd", "cd"}
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		fmt.Fprint(os.Stdout, "\033[1m\033[36m$ ")
 
-		// formatting the command to bold and yello
+		// formatting the command to bold and yellow
 		fmt.Fprint(os.Stdout, "\033[1m\033[33m")
 
 		input, err := reader.ReadString('\n')
@@ -79,7 +105,8 @@ func main() {
 		// reset the formatting
 		fmt.Fprint(os.Stdout, "\033[0m")
 
-		input = strings.TrimSpace(input) // to remove the \n
+		// to remove the \n
+		input = strings.TrimSpace(input)
 
 		ins := strings.Split(input, " ")
 
@@ -90,6 +117,10 @@ func main() {
 			handleEcho(ins)
 		case "type":
 			handleType(ins, builtins)
+		case "pwd":
+			handlePwd()
+		case "cd":
+			handleCd(ins)
 		default:
 			/* handling the external commands */
 			// prepare the command to be runnable
