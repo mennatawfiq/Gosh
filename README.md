@@ -39,6 +39,6 @@ I’m currently working on adding more features to make this shell more powerful
    cd Gosh
    ```
 2. Build and run the project:
-  ```bash
+   ```bash
    go run .
    ```
