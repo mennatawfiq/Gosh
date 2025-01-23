@@ -118,9 +118,9 @@ func main() {
 
 		var ofile string
 		var args []string
-		var appnd bool
+		var appnd, out, er bool
 		for i, in := range ins {
-			if in == ">" || in == "1>" || in == ">>" {
+			if in == ">" || in == "1>" || in == ">>" || in == "2>" || in == "2>>" {
 				if i+1 < len(ins) {
 					ofile = ins[i+1]
 					args = ins[:i]
@@ -128,8 +128,13 @@ func main() {
 					printOSln("arguments not sufficient")
 					continue
 				}
-				if in == ">>" {
+				if in == ">>" || in == "2>>" {
 					appnd = true
+				}
+				if in == ">" || in == "1>" || in == ">>" {
+					out = true
+				} else if in == "2>" || in == "2>>" {
+					er = true
 				}
 
 				break
@@ -151,12 +156,20 @@ func main() {
 					continue
 				}
 				defer file.Close()
+				if out {
+					// redirect stdout to the file
+					oldStdout := os.Stdout
+					os.Stdout = file
+					handleEcho(args)
+					os.Stdout = oldStdout // restore stdout
+				} else if er {
+					// redirect stderr to the file
+					oldStderr := os.Stderr
+					os.Stderr = file
+					handleEcho(args)
+					os.Stderr = oldStderr // restore stderr
+				}
 
-				// redirect stdout to the file
-				oldStdout := os.Stdout
-				os.Stdout = file
-				handleEcho(args)
-				os.Stdout = oldStdout // restore stdout
 			} else {
 				handleEcho(args)
 			}
@@ -178,11 +191,18 @@ func main() {
 				}
 				defer file.Close()
 
-				command.Stdout = file
+				if out {
+					// redirect stdout to the file
+					command.Stdout = file
+				} else if er {
+					// redirect stderr to the file
+					command.Stderr = file
+				}
 			} else {
 				command.Stdout = os.Stdout
+				command.Stderr = os.Stderr
 			}
-			command.Stderr = os.Stderr
+
 			err := command.Run()
 			if err != nil {
 				printOSln(args[0] + ": command not found")
