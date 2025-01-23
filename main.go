@@ -22,6 +22,17 @@ func contains(s []string, e string) bool {
 	return false
 }
 
+func redir(appnd bool, ofile string) (*os.File, error) {
+	var file *os.File
+	var err error
+	if appnd {
+		file, err = os.OpenFile(ofile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	} else {
+		file, err = os.Create(ofile)
+	}
+	return file, err
+}
+
 func handleExit(ins []string) {
 	if len(ins) > 1 {
 		if ins[1] == "0" {
@@ -75,9 +86,9 @@ func handleCd(ins []string) {
 		home, _ := os.UserHomeDir()
 		err = os.Chdir(home)
 	} else {
-		// if path[0] == '/' {
-		// 	path = strings.TrimPrefix(path, "/")
-		// }
+		if ins[1][0] == '/' {
+			ins[1] = strings.TrimPrefix(ins[1], "/")
+		}
 		err = os.Chdir(ins[1])
 	}
 	if err != nil {
@@ -90,13 +101,11 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
+		// print the shell prompt to the terminal with formatting
 		fmt.Fprint(os.Stdout, "\033[1m\033[36m$ ")
-
-		// formatting the command to bold and yellow
 		fmt.Fprint(os.Stdout, "\033[1m\033[33m")
 
 		input, err := reader.ReadString('\n')
-
 		if err != nil {
 			fmt.Fprint(os.Stderr, "ERROR: ", err)
 			return
@@ -105,33 +114,78 @@ func main() {
 		// reset the formatting
 		fmt.Fprint(os.Stdout, "\033[0m")
 
-		// to remove the \n
-		input = strings.TrimSpace(input)
+		ins := strings.Split(strings.TrimSpace(input), " ")
 
-		ins := strings.Split(input, " ")
+		var ofile string
+		var args []string
+		var appnd bool
+		for i, in := range ins {
+			if in == ">" || in == "1>" || in == ">>" {
+				if i+1 < len(ins) {
+					ofile = ins[i+1]
+					args = ins[:i]
+				} else {
+					printOSln("arguments not sufficient")
+					continue
+				}
+				if in == ">>" {
+					appnd = true
+				}
 
-		switch ins[0] {
+				break
+			}
+		}
+		if ofile == "" {
+			args = ins
+		}
+
+		switch args[0] {
 		case "exit":
-			handleExit(ins)
+			handleExit(args)
 		case "echo":
-			handleEcho(ins)
+			if ofile != "" {
+				// redirect output to the file
+				file, err := redir(appnd, ofile)
+				if err != nil {
+					printOSln("Error opening file: " + err.Error())
+					continue
+				}
+				defer file.Close()
+
+				// redirect stdout to the file
+				oldStdout := os.Stdout
+				os.Stdout = file
+				handleEcho(args)
+				os.Stdout = oldStdout // restore stdout
+			} else {
+				handleEcho(args)
+			}
 		case "type":
-			handleType(ins, builtins)
+			handleType(args, builtins)
 		case "pwd":
 			handlePwd()
 		case "cd":
-			handleCd(ins)
+			handleCd(args)
 		default:
-			/* handling the external commands */
-			// prepare the command to be runnable
-			command := exec.Command(ins[0], ins[1:]...)
-			// assign the standard output and error to the command
-			command.Stdout = os.Stdout
+			// handle external commands
+			command := exec.Command(args[0], args[1:]...)
+			if ofile != "" {
+				// redirect output to the file
+				file, err := redir(appnd, ofile)
+				if err != nil {
+					printOSln("Error opening file: " + err.Error())
+					continue
+				}
+				defer file.Close()
+
+				command.Stdout = file
+			} else {
+				command.Stdout = os.Stdout
+			}
 			command.Stderr = os.Stderr
 			err := command.Run()
-			//if error, then the command does not exist
 			if err != nil {
-				printOSln(ins[0] + ": command not found")
+				printOSln(args[0] + ": command not found")
 			}
 		}
 	}
