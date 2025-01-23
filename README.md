@@ -21,7 +21,7 @@
 
 I’m currently working on adding more features to make this shell more powerful and user-friendly. Some of the features in progress include:
 
-- **Autocompletion**, **History**, and **Pipelines**.
+**Autocompletion**, **History**, and **Pipelines**.
 
 ---
 
